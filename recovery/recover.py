@@ -19,12 +19,31 @@ def main():
     parser.add_argument("source", type=Path)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
-    if hashlib.sha256(args.source.read_bytes()).hexdigest() != SOURCE_SHA256:
+    try:
+        source_hash = hashlib.sha256(args.source.read_bytes()).hexdigest()
+    except OSError as error:
+        parser.error(str(error))
+    if source_hash != SOURCE_SHA256:
         parser.error("Source hash differs from the selected reproduction")
 
     import pdfplumber
 
-    args.output.mkdir(parents=True, exist_ok=True)
+    try:
+        source_path = args.source.resolve()
+        # Check every destination before writing any output. resolve() covers
+        # symlink aliases; samefile() also catches existing hard links.
+        for number, _, _ in PAGES:
+            for label in ("before", "after"):
+                path = args.output / f"page{number}-{label}.json"
+                if path.resolve() == source_path or (path.exists() and path.samefile(source_path)):
+                    parser.error(f"Output file would overwrite the source: {path}")
+    except (OSError, RuntimeError) as error:
+        # pathlib.resolve() reports symlink loops as RuntimeError on Python 3.12.
+        parser.error(str(error))
+    try:
+        args.output.mkdir(parents=True, exist_ok=True)
+    except OSError as error:
+        parser.error(str(error))
     summary = []
     with pdfplumber.open(args.source) as pdf:
         for number, target_row, bottom in PAGES:

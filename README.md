@@ -7,14 +7,16 @@ Two small, AI-authored utilities based on [pdfplumber issue #1370](https://githu
 - `recovery/recover.py` applies `explicit_horizontal_lines` at 554.62 points on physical page 117, 538.02 on page 317, and the existing 546.47 boundary on control page 201. It requires the exact source SHA-256 and writes before/after JSON locally
 - `quality-check/scripts/check_rows.py` warns about one full-row-collapse signature in rectangular string/null arrays. It never reads a PDF or changes the input
 - `quality-check/tests/test_check_rows.py` contains 19 synthetic contract tests, including deliberate false positives and false negatives. These tests contain no extracted PDF text
+- `recovery/tests/test_recover.py` contains 13 synthetic CLI/path tests. Successful-path tests substitute an in-memory source hash and PDF reader; they do not validate PDF extraction
 
 Run the public tests from this directory; no packages are required:
 
 ```sh
 python3 -B -m unittest discover -s quality-check/tests -v
+python3 -B -m unittest discover -s recovery/tests -v
 ```
 
-Tested with Python 3.12.14. The checker and synthetic tests are unchanged from the original utility; `quality-check/frozen-rule.sha256` records the checker hash.
+Tested with Python 3.12.14. The checker and its 19 heuristic tests are unchanged from the original utility; `quality-check/frozen-rule.sha256` records the checker hash.
 
 ## Reproduce locally from the public source
 
@@ -29,6 +31,13 @@ python3 -B quality-check/scripts/check_rows.py ../pdf-table-recovery-rerun/page1
 ```
 
 On Windows use the environment's `Scripts/python.exe`. The before array should report `review_required`; the after array should report `no_signature_found_not_validated`. Both checker calls exit successfully: inspect the JSON status, not just the exit code. No source PDF, extracted fixture, screenshot or generated output is bundled.
+
+### CLI input and output behavior
+
+- The checker reads UTF-8 JSON without a byte-order mark (BOM), not CSV. Invalid input, missing files and invalid array shapes produce an error on stderr and exit 2. An empty file is invalid; an empty JSON array `[]` exits 0 with `no_signature_found_not_validated`
+- Recovery rejects missing/unreadable source files, a mismatched source hash, source/output collisions, unresolvable output paths (including symlink loops) and output-directory setup errors with an error on stderr and exit 2. Successful recovery exits 0
+- Recovery overwrites the six matching `page<number>-before.json` / `page<number>-after.json` files in `--output`; unrelated files are retained. Use a separate output directory to keep earlier results
+- All six output paths are checked against the source before any output is written, including resolved symlink aliases and existing hard links. This is not a transaction or protection against concurrent filesystem changes: later extraction/write failures can still leave partial output
 
 ## Prior real-PDF observations, separate from the public tests
 
