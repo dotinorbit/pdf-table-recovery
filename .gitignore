@@ -1,0 +1,10 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.[pP][dD][fF]
+/rerun/
+/results/
+/renders/
+/pdf-table-recovery-rerun/
+/pdf-table-holdout-rerun/
